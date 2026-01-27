@@ -1,3 +1,14 @@
+// PWA: registra service worker
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", async () => {
+    try {
+      await navigator.serviceWorker.register("./sw.js");
+    } catch (e) {
+      // silencioso (GitHub Pages pode demorar primeira vez)
+    }
+  });
+}
+
 "use strict";
 
 const CSV_URL = "./filmes.csv";
