@@ -1,1 +1,104 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Jogo de Dicas de Filme</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <canvas id="confettiCanvas" aria-hidden="true"></canvas>
 
+  <main class="app">
+    <header class="topbar">
+      <div>
+        <h1 class="title">Adivinhe o Filme</h1>
+        <p class="subtitle">Começa com <b>gêneros</b> + <b>1 plotword</b>. Cada chute revela mais.</p>
+      </div>
+
+      <!-- opcional: manter para debug/alternativa -->
+      <label class="csvChip" title="Carregar CSV manualmente (opcional)">
+        <input id="csvInput" type="file" accept=".csv,text/csv" />
+        <span>Carregar CSV</span>
+      </label>
+    </header>
+
+    <section class="card">
+      <div class="cardHeader">
+        <h2 class="cardTitle">Dicas</h2>
+        <button id="btnNew" class="btn btnGhost" type="button">🎲 Sortear outro filme</button>
+      </div>
+
+      <div class="hints">
+        <div class="hintRow">
+          <div class="hintLabel">Gêneros</div>
+          <div id="genresChips" class="chips" aria-live="polite"></div>
+        </div>
+
+        <div class="hintRow">
+          <div class="hintLabel">Plotwords</div>
+          <div id="plotChips" class="chips chipsWrap" aria-live="polite"></div>
+        </div>
+
+        <div class="hintRow">
+          <div class="hintLabel">Ano</div>
+          <div id="yearChip" class="chips" aria-live="polite"></div>
+        </div>
+
+        <div class="hintRow">
+          <div class="hintLabel">Diretor</div>
+          <div id="directorChip" class="chips" aria-live="polite"></div>
+        </div>
+
+        <div id="statusLine" class="statusLine" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="cardHeader">
+        <h2 class="cardTitle">Seu chute</h2>
+      </div>
+
+      <div class="guessArea">
+        <div class="combo" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-owns="suggestions">
+          <input
+            id="guessInput"
+            class="input"
+            type="text"
+            placeholder="Digite para buscar… (precisa selecionar da lista)"
+            autocomplete="off"
+            spellcheck="false"
+            aria-autocomplete="list"
+            aria-controls="suggestions"
+          />
+          <button id="btnConfirm" class="btn btnPrimary" type="button" disabled>Confirmar chute</button>
+
+          <div id="suggestions" class="suggestions" role="listbox" aria-label="Sugestões de filmes"></div>
+        </div>
+
+        <div class="help">
+          <span class="dot"></span>
+          <span>O chute só pode ser confirmado se você <b>selecionar</b> um filme sugerido.</span>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <span id="dbInfo">Carregando banco…</span>
+    </footer>
+  </main>
+
+  <div id="modal" class="modal" aria-hidden="true">
+    <div class="modalBackdrop"></div>
+    <div class="modalCard" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <h3 id="modalTitle" class="modalTitle"></h3>
+      <p id="modalText" class="modalText"></p>
+      <div class="modalActions">
+        <button id="modalOk" class="btn btnPrimary" type="button">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
