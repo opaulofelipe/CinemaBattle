@@ -13,7 +13,7 @@
     <header class="topbar">
       <div>
         <h1 class="title">Adivinhe o Filme</h1>
-        <p class="subtitle">Começa com <b>gêneros</b> + <b>1 plotword</b>. Cada chute revela mais.</p>
+        <p class="subtitle">3 tentativas com <b>sinopse</b>. Depois revela <b>ano</b>, depois <b>diretor</b>, e a última chance.</p>
       </div>
 
       <!-- opcional: manter para debug/alternativa -->
@@ -35,9 +35,9 @@
           <div id="genresChips" class="chips" aria-live="polite"></div>
         </div>
 
-        <div class="hintRow">
-          <div class="hintLabel">Plotwords</div>
-          <div id="plotChips" class="chips chipsWrap" aria-live="polite"></div>
+        <div class="hintRow hintRowSynopsis">
+          <div class="hintLabel">Sinopse</div>
+          <div id="synopsisBox" class="synopsisBox" aria-live="polite"></div>
         </div>
 
         <div class="hintRow">
@@ -51,6 +51,12 @@
         </div>
 
         <div id="statusLine" class="statusLine" aria-live="polite"></div>
+
+        <!-- Poster (mostra só no final) -->
+        <div id="posterWrap" class="posterWrap" hidden>
+          <div class="posterTitle">Poster</div>
+          <img id="posterImg" class="posterImg" alt="Poster do filme" />
+        </div>
       </div>
     </section>
 

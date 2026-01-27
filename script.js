@@ -1,27 +1,10 @@
 "use strict";
 
-/**
- * Auto-carrega ./filmes.csv (mesmo diretório).
- * Mantém fallback DEMO_CSV caso o fetch falhe (ex: rodando via file://).
- *
- * Colunas aceitas (títulos equivalentes):
- * - Título do filme / titulo do filme / filme / título / titulo
- * - Ano
- * - Diretor
- * - Plotwords / Plotword
- * - Gênero / Genero
- */
-
 const CSV_URL = "./filmes.csv";
+const POSTER_PREFIX = "https://image.tmdb.org/t/p/w500";
 
-const DEMO_CSV = `Título do filme,Ano,Diretor,Plotwords,Gênero
-"Viagem à Lua",1902,"Georges Méliès","lua|foguete|cientistas|fantasia|efeitos","Fantasia, Aventura"
-"O Grande Roubo do Trem",1903,"Edwin S. Porter","assalto|trem|bandidos|perseguição|tiroteio","Faroeste, Crime"
-"Cabíria",1914,"Giovanni Pastrone","cartago|roma|escravidão|aníbal|espetáculo","Épico, Histórico"
-"O Nascimento de uma Nação",1915,"D. W. Griffith","guerra-civil|reconstrução|propaganda|conflito|épico","Drama, Guerra"
-"Intolerância",1916,"D. W. Griffith","fanatismo|quatro-histórias|montagem|tragédia|moral","Drama, Épico"
-"O Imigrante",1917,"Charles Chaplin","navio|pobreza|amor|humilhação|superação","Comédia, Curta"
-"Eu Acuso!",1919,"Abel Gance","guerra|trauma|culpa|paz|fantasmas","Drama, Guerra"
+const DEMO_CSV = `Título do filme,Ano,Diretor,Sinopse,Gênero,poster_path
+"Viagem à Lua",1902,"Georges Méliès","Um grupo de cientistas constrói um foguete e parte rumo à Lua, vivendo aventuras fantásticas.","Fantasia, Aventura","/example.jpg"
 `;
 
 // ---------- Utils ----------
@@ -32,11 +15,9 @@ function normalizeStr(s) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 }
-
 function pickRandom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
-
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -44,7 +25,7 @@ function el(tag, className, text) {
   return node;
 }
 
-// CSV parser (aspas e vírgulas)
+// CSV parser
 function parseCSV(text) {
   const rows = [];
   let row = [];
@@ -108,10 +89,11 @@ function mapHeaders(headers) {
   const titleIdx = idx("filme", "titulo do filme", "título do filme", "titulo", "título", "title");
   const yearIdx = idx("ano", "year");
   const directorIdx = idx("diretor", "director");
-  const plotIdx = idx("plotwords", "plotword", "plot words", "palavras do plot", "palavras");
+  const synopsisIdx = idx("sinopse", "synopsis", "overview", "plot", "descricao", "descrição");
   const genreIdx = idx("gênero", "genero", "genre", "gêneros", "generos");
+  const posterIdx = idx("poster_path", "poster path", "posterpath", "poster");
 
-  return { titleIdx, yearIdx, directorIdx, plotIdx, genreIdx };
+  return { titleIdx, yearIdx, directorIdx, synopsisIdx, genreIdx, posterIdx };
 }
 
 function buildDBFromCSV(csvText) {
@@ -121,37 +103,32 @@ function buildDBFromCSV(csvText) {
   const headers = rows[0];
   const m = mapHeaders(headers);
 
-  if (m.titleIdx < 0) {
-    throw new Error("CSV sem coluna de título (ex: 'Título do filme' ou 'filme').");
-  }
+  if (m.titleIdx < 0) throw new Error("CSV sem coluna de título (ex: 'Título do filme' ou 'filme').");
+  if (m.synopsisIdx < 0) throw new Error("CSV sem coluna de sinopse (ex: 'Sinopse' ou 'overview').");
 
   const db = [];
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r];
+
     const title = String(row[m.titleIdx] ?? "").trim();
     if (!title) continue;
 
     const year = String(row[m.yearIdx] ?? "").trim();
     const director = String(row[m.directorIdx] ?? "").trim();
-
-    const plotRaw = String(row[m.plotIdx] ?? "").trim();
-    const plotwords = plotRaw
-      .split("|")
-      .map(s => s.trim())
-      .filter(Boolean);
+    const synopsis = String(row[m.synopsisIdx] ?? "").trim();
 
     const genreRaw = String(row[m.genreIdx] ?? "").trim();
-    const genres = genreRaw
-      .split(",")
-      .map(s => s.trim())
-      .filter(Boolean);
+    const genres = genreRaw.split(",").map(s => s.trim()).filter(Boolean);
+
+    const poster_path = String(row[m.posterIdx] ?? "").trim();
 
     db.push({
       title,
       year,
       director,
-      plotwords,
+      synopsis,
       genres,
+      poster_path,
       _nTitle: normalizeStr(title),
     });
   }
@@ -161,10 +138,17 @@ function buildDBFromCSV(csvText) {
 
 // ---------- UI refs ----------
 const genresChips = document.getElementById("genresChips");
-const plotChips = document.getElementById("plotChips");
+const synopsisBox = document.getElementById("synopsisBox");
 const yearChip = document.getElementById("yearChip");
 const directorChip = document.getElementById("directorChip");
 const statusLine = document.getElementById("statusLine");
+
+const posterWrap = document.getElementById("posterWrap");
+const posterImg = document.getElementById("posterImg");
+posterImg.addEventListener("error", () => {
+  hidePoster();
+});
+
 
 const guessInput = document.getElementById("guessInput");
 const suggestions = document.getElementById("suggestions");
@@ -185,10 +169,11 @@ const ctx = confettiCanvas.getContext("2d");
 let DB = [];
 let current = null;
 
-let shownPlotCount = 0;
+const SYNOPSIS_TRIES = 3;
+let triesLeft = SYNOPSIS_TRIES;
+
 let yearRevealed = false;
 let directorRevealed = false;
-let directorJustRevealed = false;
 let isGameOver = false;
 
 let selectedTitle = null;
@@ -285,7 +270,7 @@ modal.addEventListener("click", (e) => {
 // ---------- Rendering ----------
 function clearHints() {
   genresChips.innerHTML = "";
-  plotChips.innerHTML = "";
+  synopsisBox.textContent = "";
   yearChip.innerHTML = "";
   directorChip.innerHTML = "";
   statusLine.textContent = "";
@@ -295,38 +280,56 @@ function chip(container, text) {
   container.appendChild(el("span", "chip", text));
 }
 
+function hidePoster() {
+  posterWrap.hidden = true;
+  posterImg.removeAttribute("src"); // ou posterImg.src = ""
+  posterImg.alt = "";
+}
+
+
+function showPoster() {
+  if (!current) return;
+
+  const p = String(current.poster_path || "").trim();
+
+  // Se não houver poster_path, não mostra nada (evita “erro”/imagem quebrada)
+  if (!p) {
+    hidePoster();
+    return;
+  }
+
+  posterImg.alt = `Poster de ${current.title}`;
+  posterImg.src = `${POSTER_PREFIX}${p}`;
+  posterWrap.hidden = false;
+}
+
+
 function renderHints() {
   clearHints();
   if (!current) return;
 
+  // Gêneros (sempre)
   if (current.genres.length) {
     for (const g of current.genres) chip(genresChips, g);
   } else {
     chip(genresChips, "—");
   }
 
-  const shown = current.plotwords.slice(0, shownPlotCount);
-  if (shown.length) {
-    for (const w of shown) chip(plotChips, w);
-  } else {
-    chip(plotChips, "—");
-  }
+  // Sinopse (sempre)
+  synopsisBox.textContent = current.synopsis || "—";
 
+  // Ano/Diretor (conforme revelado)
   if (yearRevealed && current.year) chip(yearChip, current.year);
   if (directorRevealed && current.director) chip(directorChip, current.director);
 
   if (isGameOver) return;
 
   if (!yearRevealed && !directorRevealed) {
-    const remainingWords = Math.max(0, current.plotwords.length - shownPlotCount);
-    statusLine.textContent =
-      remainingWords > 0
-        ? `Errou? Você revela mais ${remainingWords} plotword(s).`
-        : `Plotwords esgotadas. Próximo erro revela o ANO.`;
+    statusLine.textContent = `Tentativas restantes antes do ano: ${triesLeft}.`;
   } else if (yearRevealed && !directorRevealed) {
-    statusLine.textContent = `Próximo erro revela o DIRETOR.`;
+    statusLine.textContent = `Ano revelado. Próximo erro revela o DIRETOR.`;
   } else if (directorRevealed) {
-    statusLine.textContent = `Diretor revelado. Agora você tem a ÚLTIMA chance.`;
+    statusLine.textContent = `Diretor revelado. Esta é a ÚLTIMA chance.`;
   }
 }
 
@@ -337,18 +340,16 @@ function setStatusPulse(type) {
   statusLine.classList.add(cls);
 }
 
-// ---------- Autocomplete obrigatório ----------
+// ---------- Autocomplete obrigatório (sem ano na lista) ----------
 function openSuggestions() {
   suggestions.style.display = "block";
   suggestions.parentElement?.setAttribute("aria-expanded", "true");
 }
-
 function closeSuggestions() {
   suggestions.style.display = "none";
   suggestions.parentElement?.setAttribute("aria-expanded", "false");
   activeSuggestionIndex = -1;
 }
-
 function updateConfirmState() {
   const ok = !isGameOver && selectedTitle && DB.some(m => normalizeStr(m.title) === normalizeStr(selectedTitle));
   btnConfirm.disabled = !ok;
@@ -356,39 +357,26 @@ function updateConfirmState() {
 
 function buildSuggestions(query) {
   suggestions.innerHTML = "";
-
   const q = normalizeStr(query);
-  if (!q) {
-    closeSuggestions();
-    return;
-  }
+  if (!q) { closeSuggestions(); return; }
 
-  const list = DB
-    .filter(m => m._nTitle.includes(q))
-    .slice(0, 24);
-
-  if (!list.length) {
-    closeSuggestions();
-    return;
-  }
+  const list = DB.filter(m => m._nTitle.includes(q)).slice(0, 24);
+  if (!list.length) { closeSuggestions(); return; }
 
   list.forEach((m, idx) => {
     const item = el("div", "suggestion", null);
     item.setAttribute("role", "option");
     item.dataset.value = m.title;
 
-    const left = el("span", "", m.title);
-    const right = el("small", "", m.year ? m.year : "");
-    item.appendChild(left);
-    item.appendChild(right);
-
+    item.appendChild(el("span", "", m.title)); // só título
     item.addEventListener("click", () => selectSuggestion(m.title));
-    suggestions.appendChild(item);
 
     if (selectedTitle && normalizeStr(selectedTitle) === normalizeStr(m.title)) {
       item.classList.add("selected");
       activeSuggestionIndex = idx;
     }
+
+    suggestions.appendChild(item);
   });
 
   openSuggestions();
@@ -415,29 +403,20 @@ guessInput.addEventListener("input", () => {
   updateConfirmState();
   buildSuggestions(guessInput.value);
 });
-
 guessInput.addEventListener("focus", () => buildSuggestions(guessInput.value));
-
 guessInput.addEventListener("keydown", (e) => {
   if (suggestions.style.display !== "block") return;
 
-  if (e.key === "ArrowDown") {
-    e.preventDefault();
-    moveSuggestion(+1);
-  } else if (e.key === "ArrowUp") {
-    e.preventDefault();
-    moveSuggestion(-1);
-  } else if (e.key === "Enter") {
+  if (e.key === "ArrowDown") { e.preventDefault(); moveSuggestion(+1); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); moveSuggestion(-1); }
+  else if (e.key === "Enter") {
     const items = Array.from(suggestions.querySelectorAll(".suggestion"));
     if (items.length && activeSuggestionIndex >= 0) {
       e.preventDefault();
       selectSuggestion(items[activeSuggestionIndex].dataset.value);
     }
-  } else if (e.key === "Escape") {
-    closeSuggestions();
-  }
+  } else if (e.key === "Escape") closeSuggestions();
 });
-
 document.addEventListener("click", (e) => {
   const within = e.target.closest(".combo");
   if (!within) closeSuggestions();
@@ -456,12 +435,12 @@ function startNewGame() {
 
   current = pickRandom(DB);
 
-  shownPlotCount = Math.min(1, current.plotwords.length);
+  triesLeft = SYNOPSIS_TRIES;
   yearRevealed = false;
   directorRevealed = false;
-  directorJustRevealed = false;
   isGameOver = false;
 
+  hidePoster();
   resetInput();
   renderHints();
 }
@@ -470,43 +449,49 @@ function winGame() {
   isGameOver = true;
   updateConfirmState();
   burstConfetti();
+  showPoster();
   openModal("🎉 Parabéns!", "Você acertou!");
 }
 
 function loseGame() {
   isGameOver = true;
   updateConfirmState();
+  showPoster();
   openModal("😕 Que pena…", "Você perdeu.");
 }
 
-function revealNextHintOnWrong() {
+function revealNextOnWrong() {
   if (!current) return;
 
-  if (shownPlotCount < current.plotwords.length) {
-    shownPlotCount++;
+  // fase sinopse: 3 tentativas
+  if (!yearRevealed && !directorRevealed) {
+    triesLeft = Math.max(0, triesLeft - 1);
+
+    if (triesLeft === 0) {
+      yearRevealed = true;      // revela ano
+    }
+
     renderHints();
     return;
   }
 
-  if (!yearRevealed) {
-    yearRevealed = true;
-    renderHints();
-    return;
-  }
-
-  if (!directorRevealed) {
+  // após revelar ano, próximo erro revela diretor
+  if (yearRevealed && !directorRevealed) {
     directorRevealed = true;
-    directorJustRevealed = true; // o erro que revela diretor ainda não é a "última chance"
     renderHints();
     return;
   }
 
-  loseGame();
+  // diretor revelado: último erro = perde
+  if (directorRevealed) {
+    loseGame();
+  }
 }
 
 function confirmGuess() {
   if (isGameOver || !current) return;
 
+  // validação: só aceita se for exatamente uma opção da lista
   const normalizedSelection = normalizeStr(selectedTitle || "");
   const exists = DB.some(m => normalizeStr(m.title) === normalizedSelection);
   if (!exists) {
@@ -526,33 +511,25 @@ function confirmGuess() {
 
   setStatusPulse("bad");
 
-  // Se diretor já revelado e NÃO é o chute logo após revelar,
-  // então este chute é a última chance -> perdeu.
-  if (directorRevealed && !directorJustRevealed) {
+  // Se diretor já foi revelado e ainda está jogando, isso era a última chance -> perde
+  if (directorRevealed) {
     statusLine.textContent = `❌ Última chance usada. O filme era: ${current.title}`;
     loseGame();
     return;
   }
 
-  statusLine.textContent = `❌ Não é esse. Revelando mais uma dica…`;
-  revealNextHintOnWrong();
-
-  // Se o erro anterior revelou o diretor, agora libera a "última chance"
-  if (directorJustRevealed) {
-    directorJustRevealed = false;
-  }
-
+  statusLine.textContent = `❌ Não é esse.`;
+  revealNextOnWrong();
   resetInput();
 }
 
 btnConfirm.addEventListener("click", confirmGuess);
 btnNew.addEventListener("click", startNewGame);
-
 guessInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !btnConfirm.disabled) confirmGuess();
 });
 
-// ---------- CSV load (auto + manual opcional) ----------
+// ---------- CSV load ----------
 async function fetchCSV(url) {
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`Falha ao carregar ${url} (HTTP ${res.status})`);
@@ -560,7 +537,6 @@ async function fetchCSV(url) {
 }
 
 async function initDB() {
-  // 1) tenta carregar automaticamente filmes.csv
   try {
     const csvText = await fetchCSV(CSV_URL);
     DB = buildDBFromCSV(csvText);
@@ -569,26 +545,20 @@ async function initDB() {
     startNewGame();
     return;
   } catch (err) {
-    // 2) fallback demo (útil para testar localmente via file://)
-    try {
-      DB = buildDBFromCSV(DEMO_CSV);
-      dbInfo.textContent = `Não consegui carregar ${CSV_URL}. Usando demo embutida (${DB.length} filmes). Dica: rode via GitHub Pages/servidor.`;
-      startNewGame();
-      return;
-    } catch (e2) {
-      openModal("Erro", `Falha ao iniciar banco.\n${String(err?.message || err)}`);
-    }
+    // fallback demo
+    DB = buildDBFromCSV(DEMO_CSV);
+    dbInfo.textContent = `Não consegui carregar ${CSV_URL}. Usando demo embutida. (Rode via GitHub Pages/servidor).`;
+    startNewGame();
   }
 }
 
-// Upload manual opcional (continua funcionando)
+// Upload manual opcional
 async function loadCSVFromFile(file) {
   const text = await file.text();
   const db = buildDBFromCSV(text);
   if (!db.length) throw new Error("CSV carregado, mas não encontrei filmes válidos.");
   return db;
 }
-
 csvInput.addEventListener("change", async () => {
   const file = csvInput.files?.[0];
   if (!file) return;

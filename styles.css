@@ -8,8 +8,11 @@
   --muted: rgba(255,255,255,0.70);
   --muted2: rgba(255,255,255,0.55);
   --shadow: 0 16px 40px rgba(0,0,0,0.35);
-  --radius: 18px;
-  --radius2: 14px;
+
+  /* ↓↓↓ menos rounded e uniforme */
+  --radius: 14px;
+  --radius2: 12px;
+
   --safeTop: env(safe-area-inset-top);
   --safeBottom: env(safe-area-inset-bottom);
 }
@@ -117,35 +120,43 @@ body{
   gap: 10px;
   align-items: start;
 }
+.hintRowSynopsis{
+  align-items: stretch;
+}
 .hintLabel{
   color: var(--muted2);
   font-size: 12px;
   padding-top: 4px;
 }
+
 .chips{
   display:flex;
   gap: 8px;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  padding-bottom: 2px;
-  scrollbar-width: none;
-}
-.chips::-webkit-scrollbar{ display:none; }
-.chipsWrap{
   flex-wrap: wrap;
-  overflow: visible;
 }
 
 .chip{
   display:inline-flex;
   align-items:center;
-  padding: 8px 10px;
+  padding: 7px 10px;
   border-radius: 999px;
   background: rgba(0,0,0,0.22);
   border: 1px solid rgba(255,255,255,0.14);
   color: rgba(255,255,255,0.92);
   font-size: 13px;
   letter-spacing: -0.01em;
+}
+
+/* ↓↓↓ caixa da sinopse com radius menor */
+.synopsisBox{
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(0,0,0,0.18);
+  padding: 10px 11px;
+  color: rgba(255,255,255,0.86);
+  font-size: 14px;
+  line-height: 1.35;
+  word-break: break-word;
 }
 
 .statusLine{
@@ -174,7 +185,7 @@ body{
 
 .input{
   width: 100%;
-  border-radius: 14px;
+  border-radius: var(--radius2);
   border: 1px solid rgba(255,255,255,0.18);
   background: rgba(0,0,0,0.22);
   padding: 12px 12px;
@@ -194,7 +205,7 @@ body{
   top: calc(100% + 8px);
   background: rgba(15, 20, 34, 0.86);
   border: 1px solid rgba(255,255,255,0.18);
-  border-radius: 14px;
+  border-radius: var(--radius2);
   padding: 6px;
   box-shadow: 0 18px 50px rgba(0,0,0,0.45);
   backdrop-filter: blur(18px);
@@ -206,18 +217,12 @@ body{
 }
 .suggestion{
   padding: 10px 10px;
-  border-radius: 12px;
+  border-radius: 10px;
   cursor:pointer;
-  display:flex;
-  justify-content: space-between;
-  gap: 10px;
   color: rgba(255,255,255,0.90);
 }
 .suggestion:hover{
   background: rgba(255,255,255,0.08);
-}
-.suggestion small{
-  color: rgba(255,255,255,0.55);
 }
 .suggestion.selected{
   background: rgba(120,170,255,0.16);
@@ -242,7 +247,7 @@ body{
 
 .btn{
   border: 1px solid rgba(255,255,255,0.18);
-  border-radius: 14px;
+  border-radius: var(--radius2);
   padding: 11px 12px;
   background: rgba(0,0,0,0.20);
   color: rgba(255,255,255,0.92);
@@ -272,6 +277,28 @@ body{
   padding-top: 6px;
 }
 
+/* Poster final */
+.posterWrap{
+  margin-top: 8px;
+  border-radius: var(--radius2);
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(0,0,0,0.16);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+.posterTitle{
+  color: rgba(255,255,255,0.70);
+  font-size: 12px;
+}
+.posterImg{
+  width: 100%;
+  max-width: 320px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+}
+
 /* Modal */
 .modal{
   position: fixed;
@@ -291,7 +318,7 @@ body{
   top: 50%;
   transform: translate(-50%,-50%);
   width: min(520px, calc(100% - 28px));
-  border-radius: 20px;
+  border-radius: 16px;
   border: 1px solid rgba(255,255,255,0.18);
   background: rgba(20, 26, 44, 0.84);
   box-shadow: 0 22px 70px rgba(0,0,0,0.55);
@@ -315,13 +342,10 @@ body{
   justify-content: flex-end;
 }
 
-/* Tiny feedback pulses */
-.pulseGood{
-  animation: pulseGood 0.9s ease-in-out 1;
-}
-.pulseBad{
-  animation: pulseBad 0.9s ease-in-out 1;
-}
+/* pulses */
+.pulseGood{ animation: pulseGood 0.9s ease-in-out 1; }
+.pulseBad{ animation: pulseBad 0.9s ease-in-out 1; }
+
 @keyframes pulseGood{
   0%{ box-shadow: 0 0 0 0 rgba(140,255,210,0.00); }
   30%{ box-shadow: 0 0 0 6px rgba(140,255,210,0.18); }
@@ -332,3 +356,8 @@ body{
   30%{ box-shadow: 0 0 0 6px rgba(255,140,160,0.18); }
   100%{ box-shadow: 0 0 0 0 rgba(255,140,160,0.00); }
 }
+
+.posterWrap[hidden]{
+  display: none !important;
+}
+
