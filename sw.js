@@ -1,7 +1,7 @@
 /* sw.js - Service Worker (GitHub Pages friendly) */
 "use strict";
 
-const VERSION = "v1.0.1";
+const VERSION = "v1.0.2";
 const STATIC_CACHE = `static-${VERSION}`;
 const RUNTIME_CACHE = `runtime-${VERSION}`;
 
@@ -104,4 +104,5 @@ self.addEventListener("fetch", (event) => {
   // Outros: tenta rede
   event.respondWith(fetch(req));
 });
+
 
