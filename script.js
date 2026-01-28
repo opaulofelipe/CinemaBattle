@@ -1,21 +1,17 @@
+"use strict";
+
 // PWA: registra service worker
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", async () => {
-    try {
-      await navigator.serviceWorker.register("./sw.js");
-    } catch (e) {
-      // silencioso (GitHub Pages pode demorar primeira vez)
-    }
+    try { await navigator.serviceWorker.register("./sw.js"); } catch {}
   });
 }
-
-"use strict";
 
 const CSV_URL = "./filmes.csv";
 const POSTER_PREFIX = "https://image.tmdb.org/t/p/w500";
 
-const DEMO_CSV = `Título do filme,Ano,Diretor,Sinopse,Gênero,poster_path
-"Viagem à Lua",1902,"Georges Méliès","Um grupo de cientistas constrói um foguete e parte rumo à Lua, vivendo aventuras fantásticas.","Fantasia, Aventura","/example.jpg"
+const DEMO_CSV = `Título do filme,Ano,Diretor,Sinopse,Gênero,poster_path,keywords
+"Viagem à Lua",1902,"Georges Méliès","Um grupo de cientistas constrói um foguete e parte rumo à Lua, vivendo aventuras fantásticas.","Fantasia, Aventura","/example.jpg","lua, foguete, cientistas, fantasia, efeitos"
 `;
 
 // ---------- Utils ----------
@@ -103,8 +99,9 @@ function mapHeaders(headers) {
   const synopsisIdx = idx("sinopse", "synopsis", "overview", "plot", "descricao", "descrição");
   const genreIdx = idx("gênero", "genero", "genre", "gêneros", "generos");
   const posterIdx = idx("poster_path", "poster path", "posterpath", "poster");
+  const keywordsIdx = idx("keywords", "keyword", "palavras-chave", "palavras chave", "tags");
 
-  return { titleIdx, yearIdx, directorIdx, synopsisIdx, genreIdx, posterIdx };
+  return { titleIdx, yearIdx, directorIdx, synopsisIdx, genreIdx, posterIdx, keywordsIdx };
 }
 
 function buildDBFromCSV(csvText) {
@@ -133,6 +130,12 @@ function buildDBFromCSV(csvText) {
 
     const poster_path = String(row[m.posterIdx] ?? "").trim();
 
+    const kwRaw = String(row[m.keywordsIdx] ?? "").trim();
+    // keywords no CSV: separadas por vírgula (conjunto entre aspas)
+    const keywords = kwRaw
+      ? kwRaw.split(",").map(s => s.trim()).filter(Boolean)
+      : [];
+
     db.push({
       title,
       year,
@@ -140,6 +143,7 @@ function buildDBFromCSV(csvText) {
       synopsis,
       genres,
       poster_path,
+      keywords,
       _nTitle: normalizeStr(title),
     });
   }
@@ -150,16 +154,13 @@ function buildDBFromCSV(csvText) {
 // ---------- UI refs ----------
 const genresChips = document.getElementById("genresChips");
 const synopsisBox = document.getElementById("synopsisBox");
+const keywordsChips = document.getElementById("keywordsChips");
 const yearChip = document.getElementById("yearChip");
 const directorChip = document.getElementById("directorChip");
 const statusLine = document.getElementById("statusLine");
 
 const posterWrap = document.getElementById("posterWrap");
 const posterImg = document.getElementById("posterImg");
-posterImg.addEventListener("error", () => {
-  hidePoster();
-});
-
 
 const guessInput = document.getElementById("guessInput");
 const suggestions = document.getElementById("suggestions");
@@ -176,6 +177,11 @@ const modalOk = document.getElementById("modalOk");
 const confettiCanvas = document.getElementById("confettiCanvas");
 const ctx = confettiCanvas.getContext("2d");
 
+// Se o poster der erro (404/path ruim), não mostra nada
+posterImg.addEventListener("error", () => {
+  hidePoster();
+});
+
 // ---------- Game state ----------
 let DB = [];
 let current = null;
@@ -189,6 +195,10 @@ let isGameOver = false;
 
 let selectedTitle = null;
 let activeSuggestionIndex = -1;
+
+// keywords: pool e reveladas
+let keywordPool = [];
+let revealedKeywords = [];
 
 // ---------- Canvas ----------
 function resizeCanvas() {
@@ -282,6 +292,7 @@ modal.addEventListener("click", (e) => {
 function clearHints() {
   genresChips.innerHTML = "";
   synopsisBox.textContent = "";
+  keywordsChips.innerHTML = "";
   yearChip.innerHTML = "";
   directorChip.innerHTML = "";
   statusLine.textContent = "";
@@ -293,17 +304,14 @@ function chip(container, text) {
 
 function hidePoster() {
   posterWrap.hidden = true;
-  posterImg.removeAttribute("src"); // ou posterImg.src = ""
+  posterImg.removeAttribute("src");
   posterImg.alt = "";
 }
 
-
 function showPoster() {
   if (!current) return;
-
   const p = String(current.poster_path || "").trim();
 
-  // Se não houver poster_path, não mostra nada (evita “erro”/imagem quebrada)
   if (!p) {
     hidePoster();
     return;
@@ -314,22 +322,22 @@ function showPoster() {
   posterWrap.hidden = false;
 }
 
-
 function renderHints() {
   clearHints();
   if (!current) return;
 
-  // Gêneros (sempre)
-  if (current.genres.length) {
-    for (const g of current.genres) chip(genresChips, g);
-  } else {
-    chip(genresChips, "—");
-  }
+  // gêneros
+  if (current.genres.length) current.genres.forEach(g => chip(genresChips, g));
+  else chip(genresChips, "—");
 
-  // Sinopse (sempre)
+  // sinopse
   synopsisBox.textContent = current.synopsis || "—";
 
-  // Ano/Diretor (conforme revelado)
+  // keywords reveladas
+  if (revealedKeywords.length) revealedKeywords.forEach(k => chip(keywordsChips, k));
+  else chip(keywordsChips, "—");
+
+  // ano/diretor
   if (yearRevealed && current.year) chip(yearChip, current.year);
   if (directorRevealed && current.director) chip(directorChip, current.director);
 
@@ -349,6 +357,15 @@ function setStatusPulse(type) {
   statusLine.classList.remove("pulseGood", "pulseBad");
   void statusLine.offsetWidth;
   statusLine.classList.add(cls);
+}
+
+// ---------- Keywords logic ----------
+function revealRandomKeyword() {
+  if (!keywordPool.length) return;
+
+  const idx = Math.floor(Math.random() * keywordPool.length);
+  const kw = keywordPool.splice(idx, 1)[0];
+  if (kw) revealedKeywords.push(kw);
 }
 
 // ---------- Autocomplete obrigatório (sem ano na lista) ----------
@@ -451,6 +468,11 @@ function startNewGame() {
   directorRevealed = false;
   isGameOver = false;
 
+  // keywords: embaralha por pool e revela 1 inicial
+  keywordPool = (current.keywords || []).slice().filter(Boolean);
+  revealedKeywords = [];
+  revealRandomKeyword(); // 1 keyword inicial, aleatória
+
   hidePoster();
   resetInput();
   renderHints();
@@ -474,12 +496,13 @@ function loseGame() {
 function revealNextOnWrong() {
   if (!current) return;
 
-  // fase sinopse: 3 tentativas
+  // fase sinopse: 3 erros (cada erro revela mais 1 keyword aleatória)
   if (!yearRevealed && !directorRevealed) {
+    revealRandomKeyword();              // adiciona keyword a cada erro (se tiver)
     triesLeft = Math.max(0, triesLeft - 1);
 
     if (triesLeft === 0) {
-      yearRevealed = true;      // revela ano
+      yearRevealed = true;             // revela ano após 3 erros
     }
 
     renderHints();
@@ -502,7 +525,6 @@ function revealNextOnWrong() {
 function confirmGuess() {
   if (isGameOver || !current) return;
 
-  // validação: só aceita se for exatamente uma opção da lista
   const normalizedSelection = normalizeStr(selectedTitle || "");
   const exists = DB.some(m => normalizeStr(m.title) === normalizedSelection);
   if (!exists) {
@@ -522,7 +544,7 @@ function confirmGuess() {
 
   setStatusPulse("bad");
 
-  // Se diretor já foi revelado e ainda está jogando, isso era a última chance -> perde
+  // se diretor já revelado, esse chute era a última chance
   if (directorRevealed) {
     statusLine.textContent = `❌ Última chance usada. O filme era: ${current.title}`;
     loseGame();
@@ -555,8 +577,7 @@ async function initDB() {
     dbInfo.textContent = `Banco: ${DB.length} filme(s) carregado(s) de ${CSV_URL}.`;
     startNewGame();
     return;
-  } catch (err) {
-    // fallback demo
+  } catch {
     DB = buildDBFromCSV(DEMO_CSV);
     dbInfo.textContent = `Não consegui carregar ${CSV_URL}. Usando demo embutida. (Rode via GitHub Pages/servidor).`;
     startNewGame();
