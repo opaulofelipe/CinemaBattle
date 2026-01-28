@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>Jogo de Dicas de Filme</title>
-  <link rel="stylesheet" href="styles.css" />
-    <!-- PWA -->
+  <title>Adivinhe o Filme</title>
+
+  <!-- PWA -->
   <link rel="manifest" href="./manifest.json" />
   <meta name="theme-color" content="#0a0e18" />
 
@@ -14,7 +14,10 @@
   <meta name="apple-mobile-web-app-title" content="Adivinhe o Filme" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="apple-touch-icon" href="./icon.png" />
+
+  <link rel="stylesheet" href="styles.css" />
 </head>
+
 <body>
   <canvas id="confettiCanvas" aria-hidden="true"></canvas>
 
@@ -22,10 +25,12 @@
     <header class="topbar">
       <div>
         <h1 class="title">Adivinhe o Filme</h1>
-        <p class="subtitle">3 tentativas com <b>sinopse</b>. Depois revela <b>ano</b>, depois <b>diretor</b>, e a última chance.</p>
+        <p class="subtitle">
+          Começa com <b>sinopse</b> + <b>gêneros</b> + <b>1 keyword</b>. Cada erro revela outra keyword. Depois: <b>ano</b>, <b>diretor</b> e última chance.
+        </p>
       </div>
 
-      <!-- opcional: manter para debug/alternativa -->
+      <!-- opcional: debug -->
       <label class="csvChip" title="Carregar CSV manualmente (opcional)">
         <input id="csvInput" type="file" accept=".csv,text/csv" />
         <span>Carregar CSV</span>
@@ -49,6 +54,12 @@
           <div id="synopsisBox" class="synopsisBox" aria-live="polite"></div>
         </div>
 
+        <!-- NOVO: Keywords -->
+        <div class="hintRow">
+          <div class="hintLabel">Keywords</div>
+          <div id="keywordsChips" class="chips" aria-live="polite"></div>
+        </div>
+
         <div class="hintRow">
           <div class="hintLabel">Ano</div>
           <div id="yearChip" class="chips" aria-live="polite"></div>
@@ -61,10 +72,9 @@
 
         <div id="statusLine" class="statusLine" aria-live="polite"></div>
 
-        <!-- Poster (mostra só no final) -->
         <div id="posterWrap" class="posterWrap" hidden>
           <div class="posterTitle">Poster</div>
-          <img id="posterImg" class="posterImg" alt="Poster do filme" />
+          <img id="posterImg" class="posterImg" alt="" />
         </div>
       </div>
     </section>
